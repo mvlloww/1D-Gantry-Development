@@ -1,32 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This is an example to send data as a UDP datagram.
+Minimal UDP boolean sender.
 
-@author: ioannisgeorgilas
+Usage:
+  python3 UDP_Send.py 1    # send boolean 1 (0x01)
+  python3 UDP_Send.py 0    # send boolean 0 (0x00)
 """
 
-# First we import our libraries
-import socket   # This library will allow you to communicate over the network
+import socket
+import argparse
 
-# This is the IP address of the machine that the data will be send to
-#UDP_IP = "127.0.0.1" # Localhost (this computer)
-UDP_IP = "138.38.204.97" #James' computer
+# Default destination (edit if needed)
+UDP_IP = "138.38.226.213"
+UDP_PORT = 50001
 
-# This is the RENOTE port the machine will reply on (on that machine this is the value for the LOCAL port)
-UDP_PORT = 50002
-# This is the message. In this case it is a string 
-MESSAGE = "Hello, friend!"
+parser = argparse.ArgumentParser(description="Send a single boolean byte (0 or 1) over UDP.")
+parser.add_argument('value', choices=['0', '1'], help='Boolean value to send (0 or 1)')
+args = parser.parse_args()
 
-# Print the values for confirmation
-print ("UDP target IP:", UDP_IP)
-print ("UDP target port:", UDP_PORT)
-print ("message:", MESSAGE)
- 
-# Create the socket for the UDP communication
-sock = socket.socket(socket.AF_INET,    # Family of addresses, in this case IP type 
-                     socket.SOCK_DGRAM) # What protocol to use, in this case UDP (datagram)
+val = 1 if args.value == '1' else 0
+payload = bytes([val])  # single raw byte: 0x00 or 0x01
 
-# Send the message over the UDP socket. Not checking if it is done
-sock.sendto(bytearray(MESSAGE,'utf-8'), # You need this command bytearray to convert the string to Bytes (utf-8 = unit8)
-            (UDP_IP, UDP_PORT))
+print(f"Sending boolean {val} to {UDP_IP}:{UDP_PORT} (raw byte: {payload!r})")
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    try:
+        sent = sock.sendto(payload, (UDP_IP, UDP_PORT))
+        print(f"sendto(): handed {sent} bytes to OS")
+    except socket.error as e:
+        print("Socket send error:", e)
+        raise
+finally:
+    sock.close()
