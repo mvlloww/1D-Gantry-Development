@@ -149,7 +149,7 @@ def main():
 
             items = []
             for marker_id, cx in zip(ids, centers):
-                deltaX = cx - screen_center_x
+                deltaX = -(cx - screen_center_x)
                 # when in attack only consider selected IDs
                 if current_mode == 'attack':
                     if marker_id in selected_ids:
