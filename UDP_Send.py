@@ -16,7 +16,7 @@ UDP_IP = "138.38.226.213" # Pi
 # This is the REMOTE port the machine will reply on (on that machine this is the value for the LOCAL port)
 UDP_PORT = 50001
 # This is the message. In this case it is a string 
-MESSAGE = "Hello, friends!"
+MESSAGE = "idle"
 
 # Print the values for confirmation
 print ("UDP target IP:", UDP_IP)
