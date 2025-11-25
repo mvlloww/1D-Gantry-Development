@@ -71,25 +71,18 @@ def main():
     current_mode = 'idle'
     selected_ids = []
 
-    # helper to send current mode as uint8 over UDP
-    def send_mode_uint8(mode_name):
+    # helper to send current mode as UTF-8 text over UDP (simple method from UDP_Send.py)
+    def send_mode_utf8(mode_name):
         try:
-            mode_num = None
-            for k, v in mode_map.items():
-                if v == mode_name:
-                    mode_num = int(k)
-                    break
-            if mode_num is None:
-                return
-            payload = struct.pack('!B', mode_num)
+            payload = bytearray(mode_name, 'utf-8')
             try:
                 sock.sendto(payload, (udp_ip, udp_port_mode))
                 if verbose:
-                    print(f"MODE sent -> {mode_name} ({mode_num}) as uint8 to {udp_ip}:{udp_port_mode}")
+                    print(f"MODE sent -> {mode_name} as utf-8 to {udp_ip}:{udp_port_mode}")
             except Exception as e:
                 print("MODE send error:", e)
         except Exception as e:
-            print("send_mode_uint8 error:", e)
+            print("send_mode_utf8 error:", e)
 
     def draw_modes_overlay(img, mode_map, current_mode):
         h, w = img.shape[:2]
@@ -257,8 +250,8 @@ def main():
             if requested:
                 current_mode = requested
                 print(f"Switched to mode: {current_mode}")
-                # send mode as uint8 to Raspberry Pi
-                send_mode_uint8(current_mode)
+                # send mode as UTF-8 text to Raspberry Pi
+                send_mode_utf8(current_mode)
                 # if selection mode entered explicitly, run selection UI now
                 if current_mode == 'selection':
                     found = select_targets(cap, aruco_dict)
@@ -268,7 +261,7 @@ def main():
                     print("Selected IDs:", selected_ids)
                     current_mode = 'attack'
                     # announce automatic attack mode over UDP
-                    send_mode_uint8(current_mode)
+                    send_mode_utf8(current_mode)
                     print("Automatically entering attack mode.")
         # no 'finding' mode: selection is available via key 2 or key 2->selection flow
 
