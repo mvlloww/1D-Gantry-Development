@@ -39,8 +39,12 @@ def select_targets(cap, aruco_dict):
     return list(found_ids)
 
 def main():
-    # Start in idle mode by default; all mode changes are keyboard-triggered.
-    initial_mode = 'idle'
+    # Configuration (arguments removed, values hard-coded)
+    # Destination Raspberry Pi (hard-coded)
+    # Change these values here if you need a different target
+    # Note: CLI arg support removed per request
+    
+    # nothing to parse; defaults below
 
     cap = cv2.VideoCapture(0) #Change camera choice if needed (on mac webcam is 0)
     if not cap.isOpened():
@@ -50,7 +54,21 @@ def main():
     aruco_dict = make_aruco_dict()
     parameters = cv2.aruco.DetectorParameters()
 
+    # Target selection phase
+    target_ids = select_targets(cap, aruco_dict)
+    print("Found IDs:", target_ids)
+
+    # Allow user to select targets
+    selected_ids = input("Enter the IDs you want to target (comma-separated): ")
+    selected_ids = [int(id.strip()) for id in selected_ids.split(",") if id.strip().isdigit()]
+
+    columns = ["timestamp", "id", "marker_x", "deltaX"]
+    log = pd.DataFrame(columns=columns)
+
+    print("Running. Press 'c' to quit.")
+
     # Setup UDP socket for sending deltaX (hard-coded Raspberry Pi address)
+    # Hard-coded to Pi IP and port per request
     udp_ip = '138.38.226.213'
     #udp_ip = '172.26.236.65'
     udp_port = 50002
@@ -61,40 +79,6 @@ def main():
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    # gamemode state: idle, calibrate, finding, attack, end
-    gamemode = initial_mode
-    last_gamemode = None
-
-    def send_mode(mode):
-        nonlocal last_gamemode
-        if mode == last_gamemode:
-            return
-        msg = f"MODE:{mode}".encode('utf-8')
-        try:
-            sock.sendto(msg, (udp_ip, udp_port))
-            if verbose:
-                print(f"Sent gamemode -> {mode}")
-        except Exception as e:
-            print("Failed to send gamemode:", e)
-        last_gamemode = mode
-
-    # Start with no selected targets; selection runs only when you press the finding key
-    selected_ids = set()
-    # start in the initial mode
-    gamemode = initial_mode
-    send_mode(gamemode)
-
-    columns = ["timestamp", "id", "marker_x", "deltaX"]
-    log = pd.DataFrame(columns=columns)
-
-    print("Running. Press 'c' to quit.")
-    print("Gamemode keys: 1=idle, 2=calibrate, 3=finding, 4=attack, 5=end")
-
-    # NOTE: UDP socket already created above before selection
-
-    # track dead status per target id
-    dead = {tid: False for tid in selected_ids}
-
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -104,12 +88,8 @@ def main():
         h, w = frame.shape[:2]
         screen_center_x = w / 2
 
-        # Only run detection when not idle (finding or attack)
-        ids = None
-        corners = []
-        if gamemode != 'idle':
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
         best_id = None
         best_deltaX = None
@@ -148,22 +128,6 @@ def main():
                 }, ignore_index=True)
 
                 print(f"BEST -> ID: {best_id}, deltaX: {best_deltaX:.1f}")
-
-                # update dead status for this marker
-                if best_id in dead:
-                    if -1.0 <= best_deltaX <= 1.0:
-                        if not dead[best_id]:
-                            dead[best_id] = True
-                            if verbose:
-                                print(f"Target {best_id} marked dead")
-                    else:
-                        if dead[best_id]:
-                            dead[best_id] = False
-
-                # check end condition: all selected targets dead
-                if selected_ids and all(dead.get(t, False) for t in selected_ids):
-                    gamemode = 'end'
-                    send_mode(gamemode)
 
                 # Send deltaX over UDP (throttle by send-interval if requested)
                 now = time.time()
@@ -212,51 +176,10 @@ def main():
                     print("UDP send error:", e)
 
         cv2.line(frame, (int(screen_center_x), 0), (int(screen_center_x), h), (255, 0, 0), 1)
-        
-        # Draw current gamemode in the bottom-left corner
-        try:
-            mode_text = f"MODE: {gamemode.upper()}"
-        except Exception:
-            mode_text = "MODE: ?"
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        scale = 0.8
-        thickness = 2
-        (text_w, text_h), baseline = cv2.getTextSize(mode_text, font, scale, thickness)
-        x = 10
-        y = h - 10  # 10 px above bottom
-        # Ensure text fits above the bottom edge
-        if y < text_h + 5:
-            y = text_h + 5
-        # Optional background for readability
-        cv2.rectangle(frame, (x - 5, y - text_h - 5), (x + text_w + 5, y + 5), (0, 0, 0), -1)
-        cv2.putText(frame, mode_text, (x, y), font, scale, (0, 255, 255), thickness)
 
         cv2.imshow("Aruco Logger", frame)
         key = cv2.waitKey(1) & 0xFF
-        # Keyboard gamemode triggers (digits 1-5)
-        if key == ord('1'):
-            gamemode = 'idle'
-            send_mode(gamemode)
-        elif key == ord('2'):
-            gamemode = 'calibrate'
-            send_mode(gamemode)
-        elif key == ord('3'):
-            # Enter finding mode and run target selection UI
-            gamemode = 'finding'
-            send_mode(gamemode)
-            print("Entering target selection (press 'q' in the selection window to finish)")
-            found = select_targets(cap, aruco_dict)
-            if found:
-                selected_ids = set(found)
-                dead = {tid: False for tid in selected_ids}
-            print("Selected IDs:", selected_ids)
-        elif key == ord('4'):
-            gamemode = 'attack'
-            send_mode(gamemode)
-        elif key == ord('5'):
-            gamemode = 'end'
-            send_mode(gamemode)
-        elif key == ord('c'):
+        if key == ord('c'):
             break
 
     cap.release()
