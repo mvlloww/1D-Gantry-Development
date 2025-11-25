@@ -1,36 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Minimal UDP boolean sender.
+This is an example to send data as a UDP datagram.
 
-Usage:
-  python3 UDP_Send.py 1    # send boolean 1 (0x01)
-  python3 UDP_Send.py 0    # send boolean 0 (0x00)
+@author: ioannisgeorgilas
 """
 
-import socket
-import argparse
+# First we import our libraries
+import socket   # This library will allow you to communicate over the network
 
-# Default destination (edit if needed)
-UDP_IP = "138.38.226.213"
+# This is the IP address of the machine that the data will be send to
+UDP_IP = "138.38.226.213" # Pi
+#UDP_IP = "138.38.204.97" #James' computer
+
+# This is the REMOTE port the machine will reply on (on that machine this is the value for the LOCAL port)
 UDP_PORT = 50001
+# This is the message. In this case it is a string 
+MESSAGE = "Hello, friends!"
 
-parser = argparse.ArgumentParser(description="Send a single boolean byte (0 or 1) over UDP.")
-parser.add_argument('value', choices=['0', '1'], help='Boolean value to send (0 or 1)')
-args = parser.parse_args()
+# Print the values for confirmation
+print ("UDP target IP:", UDP_IP)
+print ("UDP target port:", UDP_PORT)
+print ("message:", MESSAGE)
+ 
+# Create the socket for the UDP communication
+sock = socket.socket(socket.AF_INET,    # Family of addresses, in this case IP type 
+                     socket.SOCK_DGRAM) # What protocol to use, in this case UDP (datagram)
 
-val = 1 if args.value == '1' else 0
-payload = bytes([val])  # single raw byte: 0x00 or 0x01
-
-print(f"Sending boolean {val} to {UDP_IP}:{UDP_PORT} (raw byte: {payload!r})")
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-try:
-    try:
-        sent = sock.sendto(payload, (UDP_IP, UDP_PORT))
-        print(f"sendto(): handed {sent} bytes to OS")
-    except socket.error as e:
-        print("Socket send error:", e)
-        raise
-finally:
-    sock.close()
+# Send the message over the UDP socket. Not checking if it is done
+sock.sendto(bytearray(MESSAGE,'utf-8'), # You need this command bytearray to convert the string to Bytes (utf-8 = unit8)
+            (UDP_IP, UDP_PORT))

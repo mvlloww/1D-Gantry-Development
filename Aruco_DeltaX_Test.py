@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import pandas as pd
 import time
+import socket
+import struct
 
 def make_aruco_dict(name=cv2.aruco.DICT_4X4_50):
     try:
@@ -37,7 +39,14 @@ def select_targets(cap, aruco_dict):
     return list(found_ids)
 
 def main():
-    cap = cv2.VideoCapture(1)
+    # Configuration (arguments removed, values hard-coded)
+    # Destination Raspberry Pi (hard-coded)
+    # Change these values here if you need a different target
+    # Note: CLI arg support removed per request
+    
+    # nothing to parse; defaults below
+
+    cap = cv2.VideoCapture(0) #Change camera choice if needed (on mac webcam is 0)
     if not cap.isOpened():
         print("ERROR: Cannot open camera")
         return
@@ -57,6 +66,18 @@ def main():
     log = pd.DataFrame(columns=columns)
 
     print("Running. Press 'c' to quit.")
+
+    # Setup UDP socket for sending deltaX (hard-coded Raspberry Pi address)
+    # Hard-coded to Pi IP and port per request
+    udp_ip = '138.38.226.213'
+    #udp_ip = '172.26.236.65'
+    udp_port = 50002
+    send_format = 'uint8'
+    min_send_interval = 0.0
+    verbose = False
+    last_send_time = 0.0
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     while True:
         ret, frame = cap.read()
@@ -108,8 +129,51 @@ def main():
 
                 print(f"BEST -> ID: {best_id}, deltaX: {best_deltaX:.1f}")
 
+                # Send deltaX over UDP (throttle by send-interval if requested)
+                now = time.time()
+                if min_send_interval == 0.0 or (now - last_send_time) >= min_send_interval:
+                    try:
+                        if send_format == 'raw_float':
+                            # pack as network-order 32-bit float
+                            payload = struct.pack('!f', float(best_deltaX))
+                        elif send_format == 'uint8':
+                            # map deltaX to uint8: center (0) -> 128, left -> <128, right -> >128
+                            # reserve 255 (0xFF) as NaN sentinel
+                            half_width = w / 2.0 if w else 1.0
+                            # normalize to [-1,1]
+                            norm = float(best_deltaX) / half_width
+                            scaled = int(round(norm * 127.0 + 128.0))
+                            scaled = max(0, min(254, scaled))
+                            payload = struct.pack('!B', scaled)
+                        else:
+                            # ASCII: timestamp,id,deltaX
+                            payload = f"{time.time():.3f},{best_id},{best_deltaX:.6f}".encode('utf-8')
+                        sock.sendto(payload, (udp_ip, udp_port))
+                        last_send_time = now
+                        if verbose:
+                            print(f"UDP sent -> {payload!r} to {udp_ip}:{udp_port}")
+                    except Exception as e:
+                        print("UDP send error:", e)
+
         else:
             cv2.putText(frame, "No markers detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            # When no marker is found, send NaN indicator according to selected format
+            now = time.time()
+            if min_send_interval == 0.0 or (now - last_send_time) >= min_send_interval:
+                try:
+                    if send_format == 'raw_float':
+                        payload = struct.pack('!f', float('nan'))
+                    elif send_format == 'uint8':
+                        # use 255 (0xFF) as NaN sentinel for uint8
+                        payload = struct.pack('!B', 255)
+                    else:
+                        payload = b"nan"
+                    sock.sendto(payload, (udp_ip, udp_port))
+                    last_send_time = now
+                    if verbose:
+                        print(f"UDP sent (no marker) -> {payload!r} to {udp_ip}:{udp_port}")
+                except Exception as e:
+                    print("UDP send error:", e)
 
         cv2.line(frame, (int(screen_center_x), 0), (int(screen_center_x), h), (255, 0, 0), 1)
 
@@ -120,6 +184,11 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
+
+    try:
+        sock.close()
+    except Exception:
+        pass
 
     if not log.empty:
         filename = "aruco_log.csv"
