@@ -107,8 +107,8 @@ def main():
 
     # Setup UDP socket for sending deltaX and mode (hard-coded Raspberry Pi address)
     # Hard-coded to Pi IP and ports per request
-    #udp_ip = '138.38.226.213'
-    udp_ip = '172.26.236.65' #Oskar's Laptop
+    udp_ip = '138.38.226.213'
+    #udp_ip = '172.26.236.65' #Oskar's Laptop
     udp_port_deltax = 50002
     udp_port_mode = 50001
     send_format = 'uint8'
