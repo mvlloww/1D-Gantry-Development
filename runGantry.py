@@ -46,7 +46,7 @@ def main():
     
     # nothing to parse; defaults below
 
-    cap = cv2.VideoCapture(0) #Change camera choice if needed (on mac webcam is 0)
+    cap = cv2.VideoCapture(1) #Change camera choice if needed (on mac webcam is 0)
     if not cap.isOpened():
         print("ERROR: Cannot open camera")
         return
