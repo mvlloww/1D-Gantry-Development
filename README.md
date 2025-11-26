@@ -8,5 +8,5 @@ To run runGantry.py, you need the following installed (either locally or in a vi
 
 use pip install...
 
-
+Run runGantrySimulink.slx first to connect to the pi.
 
