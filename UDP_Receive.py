@@ -15,9 +15,10 @@ import struct
 # First we need to set the IP and PORT we are going to listen to
 # This is the localhost IP address (this machine)
 UDP_IP = "0.0.0.0"
+#UDP_IP = "138.38.226.213"
  
 # This is the LOCAL port I am expecting data (on the sending machine this is the REMOTE port)
-UDP_PORT = 50002
+UDP_PORT = 55004
 
 # Create the socket for the UDP communication
 sock = socket.socket(socket.AF_INET,    # Family of addresses, in this case IP (Internet Protocol) family 
